@@ -21,25 +21,19 @@
 #[macro_use]
 extern crate serde_json;
 
-use exonum::{
-    api::node::public::explorer::{TransactionQuery, TransactionResponse},
-    crypto::{self, Hash, PublicKey, SecretKey},
-    messages::{self, RawTransaction, Signed},
-};
-use exonum_testkit::{ApiKind, TestKit, TestKitApi, TestKitBuilder};
-
-// Import data types used in tests from the crate where the service is defined.
 use exonum_cryptocurrency_advanced::currency::{
-    api::{WalletInfo, WalletQuery},
+    // api::{WalletInfo, WalletQuery},
     transactions::{CreateWallet, Transfer},
     wallet::Wallet,
-    Service,
 };
 
 // Imports shared test constants.
-use crate::constants::{ALICE_NAME, BOB_NAME};
+use common::{
+    ALICE_NAME, BOB_NAME,
+    testkit::create_testkit,
+};
 
-mod constants;
+mod common;
 
 /// Check that the wallet creation transaction works when invoked via API.
 #[test]
@@ -200,101 +194,4 @@ fn test_unknown_wallet_request() {
     let (tx, _) = api.create_wallet(ALICE_NAME);
 
     api.assert_no_wallet(tx.author());
-}
-
-/// Wrapper for the cryptocurrency service API allowing to easily use it
-/// (compared to `TestKitApi` calls).
-struct CryptocurrencyApi {
-    pub inner: TestKitApi,
-}
-
-impl CryptocurrencyApi {
-    /// Generates a wallet creation transaction with a random key pair, sends it over HTTP,
-    /// and checks the synchronous result (i.e., the hash of the transaction returned
-    /// within the response).
-    /// Note that the transaction is not immediately added to the blockchain, but rather is put
-    /// to the pool of unconfirmed transactions.
-    fn create_wallet(&self, name: &str) -> (Signed<RawTransaction>, SecretKey) {
-        let (pubkey, key) = crypto::gen_keypair();
-        // Create a pre-signed transaction
-        let tx = CreateWallet::sign(name, &pubkey, &key);
-
-        let data = messages::to_hex_string(&tx);
-        let tx_info: TransactionResponse = self
-            .inner
-            .public(ApiKind::Explorer)
-            .query(&json!({ "tx_body": data }))
-            .post("v1/transactions")
-            .unwrap();
-        assert_eq!(tx_info.tx_hash, tx.hash());
-        (tx, key)
-    }
-
-    fn get_wallet(&self, pub_key: PublicKey) -> Option<Wallet> {
-        let wallet_info = self
-            .inner
-            .public(ApiKind::Service("cryptocurrency"))
-            .query(&WalletQuery { pub_key })
-            .get::<WalletInfo>("v1/wallets/info")
-            .unwrap();
-
-        let to_wallet = wallet_info.wallet_proof.to_wallet.check().unwrap();
-        let wallet = to_wallet
-            .all_entries()
-            .find(|(ref k, _)| **k == pub_key)
-            .and_then(|tuple| tuple.1)
-            .cloned();
-        wallet
-    }
-
-    /// Sends a transfer transaction over HTTP and checks the synchronous result.
-    fn transfer(&self, tx: &Signed<RawTransaction>) {
-        let data = messages::to_hex_string(&tx);
-        let tx_info: TransactionResponse = self
-            .inner
-            .public(ApiKind::Explorer)
-            .query(&json!({ "tx_body": data }))
-            .post("v1/transactions")
-            .unwrap();
-        assert_eq!(tx_info.tx_hash, tx.hash());
-    }
-
-    /// Asserts that a wallet with the specified public key is not known to the blockchain.
-    fn assert_no_wallet(&self, pub_key: PublicKey) {
-        let wallet_info: WalletInfo = self
-            .inner
-            .public(ApiKind::Service("cryptocurrency"))
-            .query(&WalletQuery { pub_key })
-            .get("v1/wallets/info")
-            .unwrap();
-
-        let to_wallet = wallet_info.wallet_proof.to_wallet.check().unwrap();
-        assert!(to_wallet.missing_keys().find(|v| **v == pub_key).is_some())
-    }
-
-    /// Asserts that the transaction with the given hash has a specified status.
-    fn assert_tx_status(&self, tx_hash: Hash, expected_status: &serde_json::Value) {
-        let info: serde_json::Value = self
-            .inner
-            .public(ApiKind::Explorer)
-            .query(&TransactionQuery::new(tx_hash))
-            .get("v1/transactions")
-            .unwrap();
-
-        if let serde_json::Value::Object(mut info) = info {
-            let tx_status = info.remove("status").unwrap();
-            assert_eq!(tx_status, *expected_status);
-        } else {
-            panic!("Invalid transaction info format, object expected");
-        }
-    }
-}
-
-/// Creates a testkit together with the API wrapper defined above.
-fn create_testkit() -> (TestKit, CryptocurrencyApi) {
-    let testkit = TestKitBuilder::validator().with_service(Service).create();
-    let api = CryptocurrencyApi {
-        inner: testkit.api(),
-    };
-    (testkit, api)
 }

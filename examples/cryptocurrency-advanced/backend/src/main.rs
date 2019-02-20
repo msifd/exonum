@@ -22,6 +22,7 @@ fn main() {
 
     let node = NodeBuilder::new()
         .with_service(Box::new(configuration::ServiceFactory))
-        .with_service(Box::new(cryptocurrency::currency::ServiceFactory));
+        .with_service(Box::new(cryptocurrency::currency::ServiceFactory))
+        .with_service(Box::new(cryptocurrency::lvm::ServiceFactory));
     node.run();
 }
