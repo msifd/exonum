@@ -23,7 +23,7 @@ use exonum::{
     storage::{ListProof, MapProof},
 };
 
-use crate::{wallet::Wallet, Schema, CRYPTOCURRENCY_SERVICE_ID};
+use super::{wallet::Wallet, Schema, service::CRYPTOCURRENCY_SERVICE_ID};
 
 /// Describes the query parameters for the `get_wallet` endpoint.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]

@@ -19,7 +19,7 @@ use exonum::{
     storage::{Fork, ProofListIndex, ProofMapIndex, Snapshot},
 };
 
-use crate::{wallet::Wallet, INITIAL_BALANCE};
+use super::{wallet::Wallet, service::INITIAL_BALANCE};
 
 /// Database schema for the cryptocurrency.
 #[derive(Debug)]

@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package exonum.examples.cryptocurrency_advanced.lvm;
+
+import "helpers.proto";
+
+message Contract {
+  exonum.PublicKey pub_key = 1;
+  string code = 2;
+  map<string, string> state = 3;
+}
+
+message CreateContract {
+  string code = 1;
+}
+
+message CallContract {
+  exonum.PublicKey contract = 1;
+  string exec_code = 2;
+  uint64 gas = 3;
+}
+

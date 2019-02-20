@@ -14,7 +14,7 @@
 
 syntax = "proto3";
 
-package exonum.examples.cryptocurrency_advanced;
+package exonum.examples.cryptocurrency_advanced.currency;
 
 import "helpers.proto";
 
