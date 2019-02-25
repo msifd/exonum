@@ -44,12 +44,12 @@ where
 
     /// Returns `ProofMapIndex` with wallets.
     pub fn wallets(&self) -> ProofMapIndex<&T, PublicKey, Wallet> {
-        ProofMapIndex::new("cryptocurrency.wallets", &self.view)
+        ProofMapIndex::new("currency.wallets", &self.view)
     }
 
     /// Returns history of the wallet with the given public key.
     pub fn wallet_history(&self, public_key: &PublicKey) -> ProofListIndex<&T, Hash> {
-        ProofListIndex::new_in_family("cryptocurrency.wallet_history", public_key, &self.view)
+        ProofListIndex::new_in_family("currency.wallet_history", public_key, &self.view)
     }
 
     /// Returns wallet for the given public key.
@@ -67,7 +67,7 @@ where
 impl<'a> Schema<&'a mut Fork> {
     /// Returns mutable `ProofMapIndex` with wallets.
     pub fn wallets_mut(&mut self) -> ProofMapIndex<&mut Fork, PublicKey, Wallet> {
-        ProofMapIndex::new("cryptocurrency.wallets", &mut self.view)
+        ProofMapIndex::new("currency.wallets", &mut self.view)
     }
 
     /// Returns history for the wallet by the given public key.
@@ -75,7 +75,7 @@ impl<'a> Schema<&'a mut Fork> {
         &mut self,
         public_key: &PublicKey,
     ) -> ProofListIndex<&mut Fork, Hash> {
-        ProofListIndex::new_in_family("cryptocurrency.wallet_history", public_key, &mut self.view)
+        ProofListIndex::new_in_family("currency.wallet_history", public_key, &mut self.view)
     }
 
     /// Increase balance of the wallet and append new record to its history.

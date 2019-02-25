@@ -16,7 +16,8 @@ message CreateContract {
 }
 
 message CallContract {
-  exonum.PublicKey contract = 1;
-  string exec_code = 2;
+  exonum.PublicKey pub_key = 1;
+  string fn_name = 2;
+  repeated string args = 3;
 }
 

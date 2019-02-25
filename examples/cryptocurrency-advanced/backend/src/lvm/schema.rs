@@ -1,6 +1,6 @@
 use exonum::{
     crypto::{Hash, PublicKey},
-    storage::{Fork, ProofListIndex, ProofMapIndex, Snapshot},
+    storage::{Fork, ProofListIndex, ProofMapIndex, Snapshot, Patch},
 };
 
 use super::contract::Contract;
@@ -25,11 +25,11 @@ where
     }
 
     pub fn state_hash(&self) -> Vec<Hash> {
-        vec![]
+        vec![self.contracts().merkle_root()]
     }
 
     pub fn contracts(&self) -> ProofMapIndex<&T, PublicKey, Contract> {
-        ProofMapIndex::new("cryptocurrency.contracts", &self.view)
+        ProofMapIndex::new("lvm.contracts", &self.view)
     }
 
     pub fn contract(&self, pub_key: &PublicKey) -> Option<Contract> {
@@ -39,11 +39,20 @@ where
 
 impl Schema<&mut Fork> {
     pub fn contracts_mut(&mut self) -> ProofMapIndex<&mut Fork, PublicKey, Contract> {
-        ProofMapIndex::new("cryptocurrency.contracts", &mut self.view)
+        ProofMapIndex::new("lvm.contracts", &mut self.view)
     }
 
     pub fn create_contract(&mut self, pub_key: &PublicKey, code: &str) {
         let contract = Contract::new(pub_key, code);
         self.contracts_mut().put(pub_key, contract);
+    }
+
+    pub fn call_contract(&mut self, contract: Contract, fn_name: &str, args: &Vec<String>) {
+        let pub_key = contract.pub_key;
+        // let contract = contract.exec(self, fn_name, args);
+        // self.contracts_mut().put(&pub_key, contract);
+        if let Ok(contract) = contract.exec(self, fn_name, args) {
+            self.contracts_mut().put(&pub_key, contract);
+        }
     }
 }

@@ -12,6 +12,8 @@ use super::{schema::Schema, service::LVM_SERVICE_ID};
 pub enum Error {
     #[fail(display = "Contract already exists")]
     ContractAlreadyExists = 0,
+    #[fail(display = "Contract not exists")]
+    ContractNotExists = 1,
 }
 
 impl From<Error> for ExecutionError {
@@ -31,13 +33,15 @@ pub struct CreateContract {
 #[derive(Serialize, Deserialize, Clone, Debug, ProtobufConvert)]
 #[exonum(pb = "proto::CallContract")]
 pub struct CallContract {
-    pub contract: PublicKey,
-    pub exec_code: String,
+    pub pub_key: PublicKey,
+    pub fn_name: String,
+    pub args: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, TransactionSet)]
 pub enum LvmTransactions {
     CreateContract(CreateContract),
+    CallContract(CallContract),
 }
 
 impl CreateContract {
@@ -46,7 +50,23 @@ impl CreateContract {
         Message::sign_transaction(
             Self {
                 pub_key: *pub_key,
-                code: code.to_owned(),
+                code: code.to_string(),
+            },
+            LVM_SERVICE_ID,
+            *pk,
+            sk,
+        )
+    }
+}
+
+impl CallContract {
+    #[doc(hidden)]
+    pub fn sign(pub_key: &PublicKey, fn_name: &str, args: &Vec<String>, pk: &PublicKey, sk: &SecretKey) -> Signed<RawTransaction> {
+        Message::sign_transaction(
+            Self {
+                pub_key: *pub_key,
+                fn_name: fn_name.to_string(),
+                args: args.clone(),
             },
             LVM_SERVICE_ID,
             *pk,
@@ -70,6 +90,13 @@ impl Transaction for CreateContract {
 
 impl Transaction for CallContract {
     fn execute(&self, mut context: TransactionContext) -> ExecutionResult {
-        Ok(())
+        let mut schema = Schema::new(context.fork());
+        
+        if let Some(contract) = schema.contract(&self.pub_key) {
+            schema.call_contract(contract, &self.fn_name, &self.args);
+            Ok(())
+        } else {
+            Err(Error::ContractNotExists)?
+        }
     }
 }

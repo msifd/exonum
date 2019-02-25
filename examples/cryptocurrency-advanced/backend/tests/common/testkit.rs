@@ -142,6 +142,23 @@ impl CryptocurrencyApi {
             .cloned();
         contract
     }
+
+    pub fn call_contract(&self, contract_pk: &PublicKey, fn_name: &str, args: Vec<&str>) -> Signed<RawTransaction> {
+        let (pubkey, key) = crypto::gen_keypair();
+
+        let args = args.iter().map(|s| s.to_string()).collect();
+        let tx = CallContract::sign(&contract_pk, fn_name, &args, &pubkey, &key);
+
+        let data = messages::to_hex_string(&tx);
+        let tx_info: TransactionResponse = self
+            .inner
+            .public(ApiKind::Explorer)
+            .query(&json!({ "tx_body": data }))
+            .post("v1/transactions")
+            .unwrap();
+        assert_eq!(tx_info.tx_hash, tx.hash());
+        tx
+    }
 }
 
 /// Creates a testkit together with the API wrapper defined above.

@@ -27,6 +27,7 @@ extern crate exonum_derive;
 extern crate failure;
 #[macro_use]
 extern crate serde_derive;
+extern crate rlua;
 
 pub mod proto;
 pub mod currency;
