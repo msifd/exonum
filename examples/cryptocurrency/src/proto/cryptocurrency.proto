@@ -28,6 +28,14 @@ message Wallet {
   uint64 balance = 3;
 }
 
+// Contract struct.
+message Contract {
+  // Public key of the wallet owner.
+  exonum.PublicKey pub_key = 1;
+  // Contract code.
+  string code = 2;
+}
+
 // Transaction type for creating a new wallet.
 message TxCreateWallet {
   // UTF-8 string with the owner's name.
@@ -42,4 +50,10 @@ message TxTransfer {
   uint64 amount = 2;
   // Auxiliary number to guarantee non-idempotence of transactions.
   uint64 seed = 3;
+}
+
+// Transaction type for executing script.
+message TxCallScript {
+  // The script.
+  string code = 1;
 }

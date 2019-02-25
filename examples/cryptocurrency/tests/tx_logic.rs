@@ -31,7 +31,7 @@ use exonum_testkit::{TestKit, TestKitBuilder};
 use exonum_cryptocurrency::{
     schema::{CurrencySchema, Wallet},
     service::CurrencyService,
-    transactions::{TxCreateWallet, TxTransfer},
+    transactions::{TxCreateWallet, TxTransfer, TxCallScript},
 };
 
 // Imports shared test constants.
@@ -190,6 +190,28 @@ fn test_transfers_in_single_block() {
 
     let bob_wallet = get_wallet(&testkit, &bob_pubkey);
     assert_eq!(bob_wallet.balance, 70);
+}
+
+#[test]
+fn test_call_script() {
+    let mut testkit = init_testkit();
+    let (alice_pubkey, alice_key) = crypto::gen_keypair();
+    let (bob_pubkey, bob_key) = crypto::gen_keypair();
+    testkit.create_block_with_transactions(txvec![
+        TxCreateWallet::sign(ALICE_NAME, &alice_pubkey, &alice_key),
+        TxCreateWallet::sign(BOB_NAME, &bob_pubkey, &bob_key),
+        TxCallScript::sign(
+            format!(r#"transfer("{}", 10)"#, bob_pubkey.to_hex()),
+            &alice_pubkey,
+            &alice_key
+        ),
+    ]);
+
+    let alice_wallet = get_wallet(&testkit, &alice_pubkey);
+    assert_eq!(alice_wallet.balance, 90);
+
+    let bob_wallet = get_wallet(&testkit, &bob_pubkey);
+    assert_eq!(bob_wallet.balance, 110);
 }
 
 /// Generate random transactions to perform [fuzz testing][fuzz] of the service. The service

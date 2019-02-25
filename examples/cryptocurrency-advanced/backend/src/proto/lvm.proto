@@ -11,12 +11,12 @@ message Contract {
 }
 
 message CreateContract {
-  string code = 1;
+  exonum.PublicKey pub_key = 1;
+  string code = 2;
 }
 
 message CallContract {
   exonum.PublicKey contract = 1;
   string exec_code = 2;
-  uint64 gas = 3;
 }
 

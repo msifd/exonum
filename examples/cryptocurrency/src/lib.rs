@@ -24,8 +24,8 @@
 //! [readme]: https://github.com/exonum/cryptocurrency#readme
 
 #![deny(
-    missing_debug_implementations,
-    missing_docs,
+    // missing_debug_implementations,
+    // missing_docs,
     unsafe_code,
     bare_trait_objects
 )]
@@ -36,8 +36,10 @@ extern crate exonum_derive;
 extern crate failure;
 #[macro_use]
 extern crate serde_derive;
+extern crate rlua;
 
 pub mod proto;
+pub mod lua_wrap;
 
 /// Persistent data.
 pub mod schema {
@@ -163,6 +165,14 @@ pub mod transactions {
         pub seed: u64,
     }
 
+    /// Transaction type for execution script.
+    #[derive(Serialize, Deserialize, Clone, Debug, ProtobufConvert)]
+    #[exonum(pb = "proto::TxCallScript")]
+    pub struct TxCallScript {
+        /// The code.
+        pub code: String,
+    }
+
     /// Transaction group.
     #[derive(Serialize, Deserialize, Clone, Debug, TransactionSet)]
     pub enum CurrencyTransactions {
@@ -170,6 +180,8 @@ pub mod transactions {
         CreateWallet(TxCreateWallet),
         /// Transfer tokens transaction.
         Transfer(TxTransfer),
+        /// Call script.
+        CallScript(TxCallScript),
     }
 
     impl TxCreateWallet {
@@ -200,6 +212,24 @@ pub mod transactions {
                     to: *to,
                     amount,
                     seed,
+                },
+                SERVICE_ID,
+                *pk,
+                sk,
+            )
+        }
+    }
+
+    impl TxCallScript {
+        #[doc(hidden)]
+        pub fn sign(
+            code: String,
+            pk: &PublicKey,
+            sk: &SecretKey,
+        ) -> Signed<RawTransaction> {
+            Message::sign_transaction(
+                Self {
+                    code,
                 },
                 SERVICE_ID,
                 *pk,
@@ -262,13 +292,19 @@ pub mod errors {
 
 /// Contracts.
 pub mod contracts {
-    use exonum::blockchain::{ExecutionResult, Transaction, TransactionContext};
+    use exonum::{
+        crypto::PublicKey,
+        blockchain::{ExecutionResult, Transaction, TransactionContext}
+    };
 
     use crate::{
         errors::Error,
         schema::{CurrencySchema, Wallet},
-        transactions::{TxCreateWallet, TxTransfer},
+        transactions::{TxCreateWallet, TxTransfer, TxCallScript},
     };
+
+    use crate::rlua::{Lua, UserData, UserDataMethods};
+    use crate::lua_wrap::LuaPublicKey;
 
     /// Initial balance of a newly created wallet.
     const INIT_BALANCE: u64 = 100;
@@ -331,6 +367,60 @@ pub mod contracts {
             } else {
                 Err(Error::InsufficientCurrencyAmount)?
             }
+        }
+    }
+
+    impl Transaction for TxCallScript {
+        /// Runs script
+        fn execute(&self, mut context: TransactionContext) -> ExecutionResult {
+            let author = context.author();
+            let view = context.fork();
+            let mut schema = CurrencySchema::new(view);
+
+            let sender = match schema.wallet(&author) {
+                Some(val) => val,
+                None => Err(Error::SenderNotFound)?,
+            };
+
+            let lua = Lua::new();
+            lua.context(|lua_ctx| {
+                lua_ctx.scope(|scope| {
+                    lua_ctx.globals().set(
+                        "transfer",
+                        scope.create_function_mut(|_, (to, amount): (LuaPublicKey, u64)| {
+                            let ref to = to.0;
+                            let receiver = schema.wallet(to).unwrap();
+
+                            sender.decrease(amount);
+                            receiver.increase(amount);
+                            println!("Transfer between wallets: {:?} => {:?}", sender, receiver);
+                            let mut wallets = schema.wallets_mut();
+                            wallets.put(&author, sender);
+                            wallets.put(to, receiver);
+                            Ok(())
+                        })?,
+                    )?;
+                    lua_ctx.load(&self.code).exec()
+                });
+
+
+            //     lua_ctx.scope(|scope| {
+            //         lua_ctx.globals().set(
+            //             "transfer",
+            //             scope.create_function_mut(|_, (to, amount): (LuaPublicKey, u64)| {
+            //                 Ok(())
+            //                 // let receiver = match schema.wallet(&to.0) {
+            //                 //     Some(val) => val,
+            //                 //     None => Err(rlua::Error::RuntimeError("Contract without wallet".to_string()))?,
+            //                 // };
+            //                 // Ok(())
+            //             })?,
+            //         )?;
+            //         lua_ctx.load(&self.code).exec();
+            //     });
+            });
+
+            Ok(())
         }
     }
 }

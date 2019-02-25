@@ -3,6 +3,8 @@ use exonum::{
     storage::{Fork, ProofListIndex, ProofMapIndex, Snapshot},
 };
 
+use super::contract::Contract;
+
 #[derive(Debug)]
 pub struct Schema<T> {
     view: T,
@@ -25,8 +27,23 @@ where
     pub fn state_hash(&self) -> Vec<Hash> {
         vec![]
     }
+
+    pub fn contracts(&self) -> ProofMapIndex<&T, PublicKey, Contract> {
+        ProofMapIndex::new("cryptocurrency.contracts", &self.view)
+    }
+
+    pub fn contract(&self, pub_key: &PublicKey) -> Option<Contract> {
+        self.contracts().get(pub_key)
+    }
 }
 
 impl Schema<&mut Fork> {
+    pub fn contracts_mut(&mut self) -> ProofMapIndex<&mut Fork, PublicKey, Contract> {
+        ProofMapIndex::new("cryptocurrency.contracts", &mut self.view)
+    }
 
+    pub fn create_contract(&mut self, pub_key: &PublicKey, code: &str) {
+        let contract = Contract::new(pub_key, code);
+        self.contracts_mut().put(pub_key, contract);
+    }
 }

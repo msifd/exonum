@@ -15,7 +15,8 @@ use exonum_cryptocurrency_advanced::{
         wallet::Wallet,
     },
     lvm::{
-        Service as LvmService,
+        service as lvm_service,
+        api::{ContractInfo, ContractQuery},
         contract::Contract,
         transactions::{CreateContract, CallContract},
     },
@@ -110,8 +111,9 @@ impl CryptocurrencyApi {
 
     pub fn create_contract(&self, code: &str) -> (Signed<RawTransaction>, PublicKey) {
         let (pubkey, key) = crypto::gen_keypair();
+        let (contract_pk, _) = crypto::gen_keypair();
         // Create a pre-signed transaction
-        let tx = CreateContract::sign(code, &pubkey, &key);
+        let tx = CreateContract::sign(&contract_pk, code, &pubkey, &key);
 
         let data = messages::to_hex_string(&tx);
         let tx_info: TransactionResponse = self
@@ -121,11 +123,24 @@ impl CryptocurrencyApi {
             .post("v1/transactions")
             .unwrap();
         assert_eq!(tx_info.tx_hash, tx.hash());
-        (tx, pubkey)
+        (tx, contract_pk)
     }
 
     pub fn get_contract(&self, pub_key: PublicKey) -> Option<Contract> {
-        None
+        let contract_info = self
+            .inner
+            .public(ApiKind::Service(lvm_service::SERVICE_NAME))
+            .query(&ContractQuery { pub_key })
+            .get::<ContractInfo>("v1/contracts/info")
+            .unwrap();
+
+        let contract_proof = contract_info.contract_proof.check().unwrap();
+        let contract = contract_proof
+            .all_entries()
+            .find(|(ref k, _)| **k == pub_key)
+            .and_then(|tuple| tuple.1)
+            .cloned();
+        contract
     }
 }
 
@@ -133,7 +148,7 @@ impl CryptocurrencyApi {
 pub fn create_testkit() -> (TestKit, CryptocurrencyApi) {
     let testkit = TestKitBuilder::validator()
         .with_service(currency_service::Service)
-        .with_service(LvmService)
+        .with_service(lvm_service::Service)
         .create();
     let api = CryptocurrencyApi {
         inner: testkit.api(),
