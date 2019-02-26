@@ -25,13 +25,33 @@ fn create_contract() {
 
 
 #[test]
-fn contract__changes_state() {
+fn call_contract() {
     let (mut testkit, api) = create_testkit();
 
     let code = r#"
-    function greet(what)
-        state["hello"] = what
-    end
+        function nothing()
+        end
+    "#;
+    let (tx, contract_pub) = api.create_contract(code);
+    testkit.create_block();
+    api.assert_tx_status(tx.hash(), &json!({ "type": "success" }));
+
+    let contract = api.get_contract(contract_pub);
+    assert!(contract.is_some());
+
+    let tx = api.call_contract(&contract_pub, "nothing", vec![]);
+    testkit.create_block();
+    api.assert_tx_status(tx.hash(), &json!({ "type": "success" }));
+}
+
+#[test]
+fn contract_changes_state() {
+    let (mut testkit, api) = create_testkit();
+
+    let code = r#"
+        function greet(what)
+            state["hello"] = what
+        end
     "#;
     let (tx, contract_pub) = api.create_contract(code);
     testkit.create_block();
@@ -43,6 +63,7 @@ fn contract__changes_state() {
     assert!(contract_before.state.get("hello").is_none());
 
     let tx = api.call_contract(&contract_pub, "greet", vec!["lvm"]);
+    testkit.create_block();
     api.assert_tx_status(tx.hash(), &json!({ "type": "success" }));
 
     let contract_after = api.get_contract(contract_pub).unwrap();

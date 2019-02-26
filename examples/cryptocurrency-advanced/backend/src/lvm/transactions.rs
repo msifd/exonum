@@ -14,6 +14,8 @@ pub enum Error {
     ContractAlreadyExists = 0,
     #[fail(display = "Contract not exists")]
     ContractNotExists = 1,
+    #[fail(display = "Contract execution error")]
+    ContractExecutionError = 2,
 }
 
 impl From<Error> for ExecutionError {
@@ -79,11 +81,12 @@ impl Transaction for CreateContract {
     fn execute(&self, mut context: TransactionContext) -> ExecutionResult {
         let mut schema = Schema::new(context.fork());
 
-        if schema.contract(&self.pub_key).is_none() {
-            schema.create_contract(&self.pub_key, &self.code);
-            Ok(())
-        } else {
-            Err(Error::ContractAlreadyExists)?
+        match schema.contract(&self.pub_key) {
+            None => {
+                schema.create_contract(&self.pub_key, &self.code);
+                Ok(())
+            },
+            Some(_) => Err(Error::ContractAlreadyExists)?,
         }
     }
 }
@@ -91,12 +94,15 @@ impl Transaction for CreateContract {
 impl Transaction for CallContract {
     fn execute(&self, mut context: TransactionContext) -> ExecutionResult {
         let mut schema = Schema::new(context.fork());
-        
-        if let Some(contract) = schema.contract(&self.pub_key) {
-            schema.call_contract(contract, &self.fn_name, &self.args);
-            Ok(())
-        } else {
-            Err(Error::ContractNotExists)?
+
+        let contract = match schema.contract(&self.pub_key) {
+            Some(c) => c,
+            None => Err(Error::ContractNotExists)?,
+        };
+
+        match schema.call_contract(contract, &self.fn_name, self.args.clone()) {
+            Ok(_) => Ok(()),
+            Err(desc) => Err(ExecutionError::with_description(Error::ContractExecutionError as u8, desc)),
         }
     }
 }
